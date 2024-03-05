@@ -1,53 +1,63 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
-class DBSCAN:
-    def __init__(self, eps=0.5, min_points=5):
-        self.eps = eps
-        self.min_points = min_points
+def dbscan(data, eps, min_samples):
+    labels = np.zeros(len(data))
+    cluster_id = 0
 
-    def fit(self, X):
-        self.X = X
-        self.labels = [0] * len(X)
-        self.cluster_id = 0
+    for i in range(len(data)):
+        if labels[i] != 0:
+            continue
 
-        for i in range(len(X)):
-            if self.labels[i] != 0:
-                continue
-            neighbors = self._region_query(i)  # get neighborhoods of p
-            if len(neighbors) < self.min_points:
-                self.labels[i] = -1  # Noise point
-            else:
-                self.cluster_id += 1  # new core object p
-                self._expand_cluster(i, neighbors)
+        neighbors = get_neighbors(data, i, eps)
 
-    # find all neighbors of p
-    def _region_query(self, index):
-        neighbors = []
-        for i in range(len(self.X)):
-            if np.linalg.norm(self.X[index] - self.X[i]) < self.eps:
-                neighbors.append(i)
-        return neighbors
+        if len(neighbors) < min_samples:
+            labels[i] = -1  # Mark as noise
+        else:
+            cluster_id += 1
+            expand_cluster(data, labels, i, neighbors, cluster_id, eps, min_samples)
 
-    # find all density-reachable
-    def _expand_cluster(self, index, neighbors):
-        self.labels[index] = self.cluster_id
-        i = 0
-        while i < len(neighbors):  # stop when have not new neighbors added to cluster
-            neighbor_index = neighbors[i]
-            if self.labels[neighbor_index] == -1:
-                self.labels[neighbor_index] = self.cluster_id
-            elif self.labels[neighbor_index] == 0:
-                self.labels[neighbor_index] = self.cluster_id
-                new_neighbors = self._region_query(neighbor_index)
-                if len(new_neighbors) >= self.min_points:
-                    neighbors.extend(new_neighbors)  # merge to cluster of p
-            i += 1
+    return labels
 
+def get_neighbors(data, query_point_index, eps):
+    '''
+    Detect eps-neighborhood of query point
+    
+    Return all points have euclidean distance from query point < eps
+    '''
+    neighbors = []
+    for i in range(len(data)):
+        if np.linalg.norm(data[query_point_index] - data[i]) < eps:  # Euclidean distance < eps
+            neighbors.append(i)
+    return neighbors
 
-D = np.array([[1, 2], [2, 3], [8, 7], [8, 8], [7, 8], [2, 2], [7, 7], [3, 2]])
-eps = 2
-MinPts = 3
-dbscan = DBSCAN(eps=eps, min_points=MinPts)
-dbscan.fit(D)
-print("Labels:", dbscan.labels)
+def expand_cluster(data, labels, core_point_index, neighbors, cluster_id, eps, min_samples):
+    labels[core_point_index] = cluster_id
+
+    for neighbor in neighbors:
+        if labels[neighbor] == -1:
+            labels[neighbor] = cluster_id  # Change noise to border point
+        elif labels[neighbor] == 0:
+            labels[neighbor] = cluster_id
+            new_neighbors = get_neighbors(data, neighbor, eps)
+            
+            if len(new_neighbors) >= min_samples:
+                neighbors.extend(new_neighbors)
+
+# Generate sample data
+data = np.concatenate([np.random.normal(loc=0, scale=.5, size=(100, 2)),
+                       np.random.normal(loc=4, scale=.5, size=(100, 2)),
+                       np.random.normal(loc=8, scale=.5, size=(100, 2))])
+
+# DBSCAN parameters
+eps = 1
+min_samples = 5
+
+# Run DBSCAN
+labels = dbscan(data, eps, min_samples)
+
+# Visualize the results
+plt.scatter(data[:, 0], data[:, 1], c=labels, cmap='viridis', marker='o', edgecolors='k')
+plt.title('DBSCAN Clustering')
+plt.show()
